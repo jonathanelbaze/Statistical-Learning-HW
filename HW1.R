@@ -114,6 +114,25 @@ mse
 
 
 
+###############################    Random Forest     ################################
 
+library(randomForest)
+
+RF1 <- randomForest(winetrain[,1:11], winetrain$y1)
+RF2 <- randomForest(winetrain[,1:11], winetrain$y2)
+RF3 <- randomForest(winetrain[,1:11], winetrain$y3)
+
+pred_RF1 <- predict(RF1, wineval, type = 'prob')
+pred_RF2 <- predict(RF2, wineval, type = 'prob')
+pred_RF3 <- predict(RF3, wineval, type = 'prob')
+pred_RF <- as.data.frame(cbind(pred_RF1[,2], pred_RF2[,2], pred_RF3[,2]))
+
+pred_RF$Results[pred_RF$V1>pred_RF$V2 & pred_RF$V1>pred_RF$V3] <- 1
+pred_RF$Results[pred_RF$V2>pred_RF$V1 & pred_RF$V2>pred_RF$V3] <- 2
+pred_RF$Results[pred_RF$V3>pred_RF$V2 & pred_RF$V3>pred_RF$V1] <- 3
+head(pred_RF$Results)
+
+mseRF <- sum(predRF$Results == wineval$y)/nval
+mseRF
 
 
