@@ -87,20 +87,20 @@ pred <- as.data.frame(cbind(pred1, pred2, pred3))
 # Factor 1
 pred$Result1[pred1 > 0.55] <- 1
 pred$Result1[pred1 < 0.55] <- 0
-mse1 <- sum(pred$Result1 == wineval$y1)/nval
-mse1
+rate1 <- sum(pred$Result1 == wineval$y1)/nval
+rate1
 
 # Factor 2
 pred$Result2[pred2 > 0.4] <- 1
 pred$Result2[pred2 < 0.4] <- 0
-mse2 <- sum(pred$Result2 == wineval$y2)/nval
-mse2
+rate2 <- sum(pred$Result2 == wineval$y2)/nval
+rate2
 
 # Factor 3
 pred$Result3[pred3 > 0.55] <- 1
 pred$Result3[pred3 < 0.55] <- 0
-mse3 <- sum(pred$Result3 == wineval$y3)/nval
-mse3
+rate3 <- sum(pred$Result3 == wineval$y3)/nval
+rate3
 
 
 ## Predictions global
@@ -117,37 +117,31 @@ pred$Results[pred1>pred2 & pred1>pred3] <- 1
 pred$Results[pred2>pred1 & pred2>pred3] <- 2
 pred$Results[pred3>pred2 & pred3>pred1] <- 3
 
-mse <- sum(pred$Results == wineval$y)/nval
-mse
+rate <- sum(pred$Results == wineval$y)/nval
+rate
 
 pred$Results[pred1>0.55] <- 1
 pred$Results[pred3>0.55] <- 3
 pred$Results[pred$Results == Na] <-2
 head(pred)
 
-mse <- sum(pred$Results == wineval$y)/nval
-mse
+rate <- sum(pred$Results == wineval$y)/nval
+rate
 
-##############################      Ordinal Forest      #############################
+
+###############################    Decision Tree     ################################
 library(rpart)
-library(rpart.plot)
-library(ordinalForest)
-library(ordinal)
 
+tree = rpart(formula = y ~ fixedacidity + volatileacidity + citricacid + residualsugar + chlorides  + freesulfurdioxide 
+             + totalsulfurdioxide + density + pH + sulphates + alcohol, data = winetrain, method='class')
+plotcp(tree)
+plot(tree, uniform=TRUE, 
+     main="Wine Tree")
+text(tree, use.n=TRUE, all=TRUE, cex=.8)
 
-ordforres <- ordfor(depvar="y", data=winetrain[,1:12], nsets=1000, ntreeperdiv=100, ntreefinal=5000, perffunction = "equal")
-ordforres$perffunctionvalues
-# Study variable importance values:
-sort(ordforres$varimp, decreasing=TRUE)
-
-# Predict values of the ordinal target variable in the test dataset:
-preds <- predict(ordforres, newdata=wineval[,1:12])
-
-# Compare predicted values with true values: 
-table(data.frame(true_values=wineval$y, predictions=preds$ypred))
-mse <- sum(preds$ypred == wineval$y)/nval
-mse
-
+pred_tree <- predict(tree, wineval, type = 'class')
+rateTree <- sum(pred_tree == wineval$y)/nval
+rateTree
 
 
 ###############################    Random Forest     ################################
@@ -168,15 +162,34 @@ pred_RF$Results[pred_RF$V2>=pred_RF$V1 & pred_RF$V2>pred_RF$V3] <- 2
 pred_RF$Results[pred_RF$V3>=pred_RF$V2 & pred_RF$V3>pred_RF$V1] <- 3
 (pred_RF$Results)
 
-mseRF <- sum(pred_RF$Results == wineval$y)/nval
-mseRF
 
+# Factor 1
+pred_RF$Result1[pred_RF1[,2] > 0.55] <- 1
+pred_RF$Result1[pred_RF1[,2] < 0.55] <- 0
+rateRF1 <- sum(pred_RF$Result1 == wineval$y1)/nval
+rateRF1
+
+# Factor 2
 pred_RF$Result2[pred_RF2[,2] > 0.4] <- 1
 pred_RF$Result2[pred_RF2[,2] < 0.4] <- 0
-mseRF2 <- sum(pred_RF$Result2 == wineval$y2)/nval
-mseRF2
+rateRF2 <- sum(pred_RF$Result2 == wineval$y2)/nval
+rateRF2
 
-##################   Combination on the best factor results    ##################
+# Factor 3
+pred_RF$Result3[pred_RF3[,2] > 0.55] <- 1
+pred_RF$Result3[pred_RF3[,2] < 0.55] <- 0
+rateRF3 <- sum(pred_RF$Result3 == wineval$y3)/nval
+rateRF3
+
+# Consolidation
+rateRF <- sum(pred_RF$Results == wineval$y)/nval
+rateRF
+library(stargazer)
+table(data.frame(true_values=wineval$y, predictions=pred_RF$Results))
+
+
+
+##########   Combination on different models : y1 and y3 LR // Y2 : RF    ###########
 
 pred_comb <- as.data.frame(cbind(pred1, pred_RF2[,2], pred3))
 pred_comb$Results[pred_comb$pred1>=pred_comb$V2 & pred_comb$pred1>pred_comb$pred3] <- 1
@@ -184,6 +197,36 @@ pred_comb$Results[pred_comb$V2>=pred_comb$pred1 & pred_comb$V2>pred_comb$pred3] 
 pred_comb$Results[pred_comb$pred3>=pred_comb$V2 & pred_comb$pred3>pred_comb$pred1] <- 3
 (pred_comb$Results)
 
-msecomb <- sum(pred_comb$Results == wineval$y)/nval
-msecomb
+ratecomb <- sum(pred_comb$Results == wineval$y)/nval
+ratecomb
+
+
+
+##############################      Ordinal Forest      #############################
+library(rpart)
+library(rpart.plot)
+library(ordinalForest)
+library(ordinal)
+
+
+ordforres <- ordfor(depvar="y", data=winetrain[,1:12], nsets=1000, ntreeperdiv=100, ntreefinal=5000, perffunction = "equal")
+ordforres$perffunctionvalues
+# Study variable importance values:
+sort(ordforres$varimp, decreasing=TRUE)
+
+# Predict values of the ordinal target variable in the test dataset:
+preds <- predict(ordforres, newdata=wineval[,1:12])
+
+# Compare predicted values with true values: 
+table(data.frame(true_values=wineval$y, predictions=preds$ypred))
+rate <- sum(preds$ypred == wineval$y)/nval
+rate
+
+
+
+#########################      Ordinal Cumulative Link Models      ########################
+
+POM = clm(formula = y ~ fixedacidity + volatileacidity + citricacid + residualsugar + chlorides  + freesulfurdioxide 
+          + totalsulfurdioxide + density + pH + sulphates + alcohol, data = winetrain)
+
 
