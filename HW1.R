@@ -5,7 +5,9 @@ train <- read.table('datrain.txt', header = TRUE, sep = ' ')
 test <- read.table('dateststudent.txt', header = TRUE, sep = ' ')
 
 summary(train)
+table(unlist(train$y))
 
+names(train)
 
 train$y1 <- rep(0, nrow(train))
 train$y2 <- rep(0, nrow(train))
@@ -23,7 +25,7 @@ train$y3 = factor(train$y3)
 
 # Splitting the data into a training (ntrain=1600) and a test (ntest=400) set
 
-set.seed(123)
+set.seed(1234)
 ntrain=1600
 nval=nrow(train)-ntrain
 idtrain=sample(1:nrow(train),ntrain,replace=FALSE)
@@ -37,14 +39,14 @@ wineval$y = factor(wineval$y)
 
 
 ###########################       Logistic Regression        ########################
-
+library(MASS)
 
 # y1
 LR_1_empty <- glm(formula = y1 ~ 1, family = "binomial", data = winetrain)
 
 LR_1_full <- glm(formula = y1 ~ fixedacidity + volatileacidity + citricacid + residualsugar + chlorides  + freesulfurdioxide 
                  + totalsulfurdioxide + density + pH + sulphates + alcohol, family = "binomial", data = winetrain)
-summary(LR_full)
+summary(LR_1_full)
 
 LR_1 <- stepAIC(object = LR_1_full, scope = LR_1_empty, direction = "both", trace=FALSE)
 
@@ -75,17 +77,52 @@ LR_3 <- stepAIC(object = LR_3_full, scope = LR_3_empty, direction = "both", trac
 
 summary(LR_3)
 
-## Predictions
-
+## Predictions by factor
 
 pred1 <- predict.glm(LR_1, wineval[,1:12], type = 'response')
 pred2 <- predict.glm(LR_2, wineval[,1:12], type = 'response')
 pred3 <- predict.glm(LR_3, wineval[,1:12], type = 'response')
 pred <- as.data.frame(cbind(pred1, pred2, pred3))
 
+# Factor 1
+pred$Result1[pred1 > 0.55] <- 1
+pred$Result1[pred1 < 0.55] <- 0
+mse1 <- sum(pred$Result1 == wineval$y1)/nval
+mse1
+
+# Factor 2
+pred$Result2[pred2 > 0.4] <- 1
+pred$Result2[pred2 < 0.4] <- 0
+mse2 <- sum(pred$Result2 == wineval$y2)/nval
+mse2
+
+# Factor 3
+pred$Result3[pred3 > 0.55] <- 1
+pred$Result3[pred3 < 0.55] <- 0
+mse3 <- sum(pred$Result3 == wineval$y3)/nval
+mse3
+
+
+## Predictions global
+
+pred$Results[0.4*pred1>0.55*pred2 & pred1>pred3] <- 1
+pred$Results[pred2*0.55>pred1*0.4 & pred2*0.55>pred3*0.4] <- 2
+pred$Results[pred3*0.4>pred2*0.55 & pred3>pred1] <- 3
+
+pred$Results[0.55*pred1>0.4*pred2 & pred1>pred3] <- 1
+pred$Results[pred2*0.4>pred1*0.55 & pred2*0.4>pred3*0.55] <- 2
+pred$Results[pred3*0.55>pred2*0.4 & pred3>pred1] <- 3
+
 pred$Results[pred1>pred2 & pred1>pred3] <- 1
 pred$Results[pred2>pred1 & pred2>pred3] <- 2
 pred$Results[pred3>pred2 & pred3>pred1] <- 3
+
+mse <- sum(pred$Results == wineval$y)/nval
+mse
+
+pred$Results[pred1>0.55] <- 1
+pred$Results[pred3>0.55] <- 3
+pred$Results[pred$Results == Na] <-2
 head(pred)
 
 mse <- sum(pred$Results == wineval$y)/nval
@@ -97,7 +134,6 @@ library(rpart.plot)
 library(ordinalForest)
 library(ordinal)
 
-set.seed(123)
 
 ordforres <- ordfor(depvar="y", data=winetrain[,1:12], nsets=1000, ntreeperdiv=100, ntreefinal=5000, perffunction = "equal")
 ordforres$perffunctionvalues
@@ -127,12 +163,27 @@ pred_RF2 <- predict(RF2, wineval, type = 'prob')
 pred_RF3 <- predict(RF3, wineval, type = 'prob')
 pred_RF <- as.data.frame(cbind(pred_RF1[,2], pred_RF2[,2], pred_RF3[,2]))
 
-pred_RF$Results[pred_RF$V1>pred_RF$V2 & pred_RF$V1>pred_RF$V3] <- 1
-pred_RF$Results[pred_RF$V2>pred_RF$V1 & pred_RF$V2>pred_RF$V3] <- 2
-pred_RF$Results[pred_RF$V3>pred_RF$V2 & pred_RF$V3>pred_RF$V1] <- 3
-head(pred_RF$Results)
+pred_RF$Results[pred_RF$V1>=pred_RF$V2 & pred_RF$V1>pred_RF$V3] <- 1
+pred_RF$Results[pred_RF$V2>=pred_RF$V1 & pred_RF$V2>pred_RF$V3] <- 2
+pred_RF$Results[pred_RF$V3>=pred_RF$V2 & pred_RF$V3>pred_RF$V1] <- 3
+(pred_RF$Results)
 
-mseRF <- sum(predRF$Results == wineval$y)/nval
+mseRF <- sum(pred_RF$Results == wineval$y)/nval
 mseRF
 
+pred_RF$Result2[pred_RF2[,2] > 0.4] <- 1
+pred_RF$Result2[pred_RF2[,2] < 0.4] <- 0
+mseRF2 <- sum(pred_RF$Result2 == wineval$y2)/nval
+mseRF2
+
+##################   Combination on the best factor results    ##################
+
+pred_comb <- as.data.frame(cbind(pred1, pred_RF2[,2], pred3))
+pred_comb$Results[pred_comb$pred1>=pred_comb$V2 & pred_comb$pred1>pred_comb$pred3] <- 1
+pred_comb$Results[pred_comb$V2>=pred_comb$pred1 & pred_comb$V2>pred_comb$pred3] <- 2
+pred_comb$Results[pred_comb$pred3>=pred_comb$V2 & pred_comb$pred3>pred_comb$pred1] <- 3
+(pred_comb$Results)
+
+msecomb <- sum(pred_comb$Results == wineval$y)/nval
+msecomb
 
