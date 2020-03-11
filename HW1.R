@@ -4,6 +4,7 @@ setwd("~/Desktop/HEC/Session4/Advanced Statistical Learning/devoir_H2020/Statist
 train <- read.table('datrain.txt', header = TRUE, sep = ' ')
 test <- read.table('dateststudent.txt', header = TRUE, sep = ' ')
 
+################################      Data Exploration       ##############################
 summary(train)
 table(unlist(train$y))
 
@@ -21,12 +22,29 @@ train$y1 = factor(train$y1)
 train$y2 = factor(train$y2)
 train$y3 = factor(train$y3)
 
+
+library(lattice)
+par(mfrow=c(2,2))
+for (col in 1:(ncol(winetrain)-4)) {
+  variable <- colnames(winetrain[col])
+  boxplot(winetrain[,col] ~ y, data = winetrain, main = bquote('Boxplot wine quality per factor y for variable :'
+                          ~ italic(.(variable)))
+          , ylab = colnames(winetrain[col]))
+}
+par(mfrow=c(1,2))
+
+boxplot(winetrain[,'alcohol'] ~ y, data = winetrain, main = bquote('Boxplot wine quality per factor y for variable :'
+                                                             ~ italic(.('alcohol')))
+        , ylab = colnames(winetrain['alcohol']))
+boxplot(winetrain[,'sulphates'] ~ y, data = winetrain, main = bquote('Boxplot wine quality per factor y for variable :'
+                                                             ~ italic(.('sulphates')))
+        , ylab = colnames(winetrain['sulphates']))
 ################################      Data Split       ##############################
 
 # Splitting the data into a training (ntrain=1600) and a test (ntest=400) set
 
 set.seed(1234)
-ntrain=1600
+ntrain=1400
 nval=nrow(train)-ntrain
 idtrain=sample(1:nrow(train),ntrain,replace=FALSE)
 
@@ -131,6 +149,7 @@ rate
 
 ###############################    Decision Tree     ################################
 library(rpart)
+library(rpart.plot)
 
 tree = rpart(formula = y ~ fixedacidity + volatileacidity + citricacid + residualsugar + chlorides  + freesulfurdioxide 
              + totalsulfurdioxide + density + pH + sulphates + alcohol, data = winetrain, method='class')
@@ -147,6 +166,7 @@ rateTree
 ###############################    Random Forest     ################################
 
 library(randomForest)
+set.seed(123)
 
 RF1 <- randomForest(winetrain[,1:11], winetrain$y1)
 RF2 <- randomForest(winetrain[,1:11], winetrain$y2)
@@ -157,31 +177,32 @@ pred_RF2 <- predict(RF2, wineval, type = 'prob')
 pred_RF3 <- predict(RF3, wineval, type = 'prob')
 pred_RF <- as.data.frame(cbind(pred_RF1[,2], pred_RF2[,2], pred_RF3[,2]))
 
-pred_RF$Results[pred_RF$V1>=pred_RF$V2 & pred_RF$V1>pred_RF$V3] <- 1
-pred_RF$Results[pred_RF$V2>=pred_RF$V1 & pred_RF$V2>pred_RF$V3] <- 2
-pred_RF$Results[pred_RF$V3>=pred_RF$V2 & pred_RF$V3>pred_RF$V1] <- 3
+# Consolidation
+pred_RF$Results[pred_RF$V1*0.4>=pred_RF$V2*0.55 & pred_RF$V1>pred_RF$V3] <- 1
+pred_RF$Results[pred_RF$V2*0.55>=pred_RF$V1*0.4 & pred_RF$V2*0.55>pred_RF$V3*0.4] <- 2
+pred_RF$Results[pred_RF$V3*0.4>=pred_RF$V2*0.55 & pred_RF$V3>pred_RF$V1] <- 3
 (pred_RF$Results)
 
 
 # Factor 1
 pred_RF$Result1[pred_RF1[,2] > 0.55] <- 1
-pred_RF$Result1[pred_RF1[,2] < 0.55] <- 0
+pred_RF$Result1[pred_RF1[,2] <= 0.55] <- 0
 rateRF1 <- sum(pred_RF$Result1 == wineval$y1)/nval
 rateRF1
 
 # Factor 2
 pred_RF$Result2[pred_RF2[,2] > 0.4] <- 1
-pred_RF$Result2[pred_RF2[,2] < 0.4] <- 0
+pred_RF$Result2[pred_RF2[,2] <= 0.4] <- 0
 rateRF2 <- sum(pred_RF$Result2 == wineval$y2)/nval
 rateRF2
 
 # Factor 3
 pred_RF$Result3[pred_RF3[,2] > 0.55] <- 1
-pred_RF$Result3[pred_RF3[,2] < 0.55] <- 0
+pred_RF$Result3[pred_RF3[,2] <= 0.55] <- 0
 rateRF3 <- sum(pred_RF$Result3 == wineval$y3)/nval
 rateRF3
 
-# Consolidation
+
 rateRF <- sum(pred_RF$Results == wineval$y)/nval
 rateRF
 library(stargazer)
@@ -203,14 +224,12 @@ ratecomb
 
 
 ##############################      Ordinal Forest      #############################
-library(rpart)
-library(rpart.plot)
 library(ordinalForest)
 library(ordinal)
 
 
-ordforres <- ordfor(depvar="y", data=winetrain[,1:12], nsets=1000, ntreeperdiv=100, ntreefinal=5000, perffunction = "equal")
-ordforres$perffunctionvalues
+ordforres <- ordfor(depvar="y", data=winetrain[,1:12], nsets=2000, ntreeperdiv=200, ntreefinal=700)
+
 # Study variable importance values:
 sort(ordforres$varimp, decreasing=TRUE)
 
@@ -219,8 +238,8 @@ preds <- predict(ordforres, newdata=wineval[,1:12])
 
 # Compare predicted values with true values: 
 table(data.frame(true_values=wineval$y, predictions=preds$ypred))
-rate <- sum(preds$ypred == wineval$y)/nval
-rate
+rateOF <- sum(preds$ypred == wineval$y)/nval
+rateOF
 
 
 
@@ -228,5 +247,40 @@ rate
 
 POM = clm(formula = y ~ fixedacidity + volatileacidity + citricacid + residualsugar + chlorides  + freesulfurdioxide 
           + totalsulfurdioxide + density + pH + sulphates + alcohol, data = winetrain)
+
+pred_clm <- predict(POM, wineval, type = 'class')
+
+rateclm <- sum(pred_clm$fit == wineval$y)/nval
+rateclm
+
+#################################     Rate Comparison     ################################
+
+rates <- cbind(rate, rateclm, rateOF, rateTree, rateRF)
+colnames(rates) <- (cbind('Regression Logistique', 'CLM', 'Ordinal Forest', 'Arbre de décision', 'Forêt Aléatoire'))
+rates
+
+
+############################   Final Predictions on Test set    ############################
+
+library(randomForest)
+set.seed(123)
+
+Final1 <- randomForest(train[,1:11], train$y1)
+Final2 <- randomForest(train[,1:11], train$y2)
+Final3 <- randomForest(train[,1:11], train$y3)
+
+pred_Final1 <- predict(Final1, test, type = 'prob')
+pred_Final2 <- predict(Final2, test, type = 'prob')
+pred_Final3 <- predict(Final3, test, type = 'prob')
+pred_Final <- as.data.frame(cbind(pred_Final1[,2], pred_Final2[,2], pred_Final3[,2]))
+
+# Consolidation
+pred_Final$Results[pred_Final$V1*0.4>=pred_Final$V2*0.55 & pred_Final$V1>pred_Final$V3] <- 1
+pred_Final$Results[pred_Final$V2*0.55>=pred_Final$V1*0.4 & pred_Final$V2*0.55>pred_Final$V3*0.4] <- 2
+pred_Final$Results[pred_Final$V3*0.4>=pred_Final$V2*0.55 & pred_Final$V3>pred_Final$V1] <- 3
+pred_Final$Results
+
+write.table(pred_Final$Results, file='El_Baze_Jonathan.txt', row.names = FALSE, col.names = FALSE)
+
 
 
