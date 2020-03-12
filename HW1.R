@@ -23,7 +23,6 @@ train$y2 = factor(train$y2)
 train$y3 = factor(train$y3)
 
 
-library(lattice)
 par(mfrow=c(2,2))
 for (col in 1:(ncol(winetrain)-4)) {
   variable <- colnames(winetrain[col])
@@ -33,6 +32,7 @@ for (col in 1:(ncol(winetrain)-4)) {
 }
 par(mfrow=c(1,2))
 
+## 2 exceptions : alcohol (big variations) sulphates (small variation)
 boxplot(winetrain[,'alcohol'] ~ y, data = winetrain, main = bquote('Boxplot wine quality per factor y for variable :'
                                                              ~ italic(.('alcohol')))
         , ylab = colnames(winetrain['alcohol']))
@@ -43,7 +43,7 @@ boxplot(winetrain[,'sulphates'] ~ y, data = winetrain, main = bquote('Boxplot wi
 
 # Splitting the data into a training (ntrain=1600) and a test (ntest=400) set
 
-set.seed(1234)
+set.seed(12345)
 ntrain=1400
 nval=nrow(train)-ntrain
 idtrain=sample(1:nrow(train),ntrain,replace=FALSE)
@@ -172,6 +172,8 @@ RF1 <- randomForest(winetrain[,1:11], winetrain$y1)
 RF2 <- randomForest(winetrain[,1:11], winetrain$y2)
 RF3 <- randomForest(winetrain[,1:11], winetrain$y3)
 
+
+
 pred_RF1 <- predict(RF1, wineval, type = 'prob')
 pred_RF2 <- predict(RF2, wineval, type = 'prob')
 pred_RF3 <- predict(RF3, wineval, type = 'prob')
@@ -181,7 +183,7 @@ pred_RF <- as.data.frame(cbind(pred_RF1[,2], pred_RF2[,2], pred_RF3[,2]))
 pred_RF$Results[pred_RF$V1*0.4>=pred_RF$V2*0.55 & pred_RF$V1>pred_RF$V3] <- 1
 pred_RF$Results[pred_RF$V2*0.55>=pred_RF$V1*0.4 & pred_RF$V2*0.55>pred_RF$V3*0.4] <- 2
 pred_RF$Results[pred_RF$V3*0.4>=pred_RF$V2*0.55 & pred_RF$V3>pred_RF$V1] <- 3
-(pred_RF$Results)
+
 
 
 # Factor 1
@@ -205,7 +207,6 @@ rateRF3
 
 rateRF <- sum(pred_RF$Results == wineval$y)/nval
 rateRF
-library(stargazer)
 table(data.frame(true_values=wineval$y, predictions=pred_RF$Results))
 
 
@@ -282,5 +283,5 @@ pred_Final$Results
 
 write.table(pred_Final$Results, file='El_Baze_Jonathan.txt', row.names = FALSE, col.names = FALSE)
 
-
+table(pred_Final$Results)
 
